@@ -14,29 +14,32 @@
      int last_comment_line = -1;
  %}
  
- 
  /* Define regular expression label */
  letter [a-zA-Z_]
  digit [0-9]
- 
+ func fn\ {letter}
+ ident {letter}({letter}|{digit})*
  
  /* Rules section */
  %%
  "+"         { print_token("ADD"); }
  "-"         { print_token("SUB"); }
+ "("         { print_token{"LPAREN"}; }
+ ")"         { print_token{"RPAREN"}; }
+ ";"         { print_token{"SEMICOLON"}; }
+ {func}      { yyless(3); print_token("FUNC"); }
+ {ident}     { print_token("IDENT"); }
  <<EOF>>     { line_num++; yyterminate(); }
  [ \t]+      {;}
  .           {;}
  %%
  
  /*  C Code section */
- int yywrap(void)
- {
+ int yywrap(void) {
      return 1;
  }
  
- int main(int argc, char *argv[])
- {
+ int main(int argc, char *argv[]) {
      if (argc == 2) {
          yyin = fopen(argv[1], "r");
      } else {
