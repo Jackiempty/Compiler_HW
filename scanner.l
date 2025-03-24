@@ -15,30 +15,93 @@
 %}
  
 /* Define regular expression label */
-letter [a-zA-Z_]
-digit [0-9]
-func fn\ {letter}
-ident {letter}({letter}|{digit})*
- 
+letter      [a-zA-Z_]
+digit       [0-9]
+func        fn\ {letter}
+ident       {letter}({letter}|{digit})*
+intlit      [0-9]+
+floatlit    [0-9]+\.[0-9]+
+i32         i32[;|\ ]{1}
+f32         f32[;|\ ]{1}
+
+comment (\/\/(.)*|\/\*[.]*\*\/)
+println println\(
+let     let\ {letter}
+/* string \"([^\"]*)\" */
+/* comment (\/\/(.)*) */
+
 /* Rules section */
+%x multiln_comment
+%x string
+
 %%
 "+"         { print_token("ADD"); }
 "-"         { print_token("SUB"); }
+"*"         { print_token("MUL"); }
+"/"         { print_token("QUO"); }
+"%"         { print_token("REM"); }
+">"         { print_token("GTR"); }
+"<"         { print_token("LSS"); }
+">="        { print_token("GEQ"); }
+"<="        { print_token("LEQ"); }
+"=="        { print_token("EQL"); }
+"!="        { print_token("NEQ"); }
+"="         { print_token("ASSIGN"); }
+"+="        { print_token("ADD_ASSIGN"); }
+"-="        { print_token("SUB_ASSIGN"); }
+"*="        { print_token("MUL_ASSIGN"); }
+"/="        { print_token("QUO_ASSIGN"); }
+"%="        { print_token("REM_ASSIGN"); }
+"&"         { print_token("BAND"); }
+"|"         { print_token("BOR"); }
+"~"         { print_token("BNOT"); }
+"&&"        { print_token("LAND"); }
+"||"        { print_token("LOR"); }
+"!"         { print_token("NOT"); }
+">>"        { print_token("RSHIFT"); }
+"<<"        { print_token("LSHIFT"); }
+"->"        { print_token("ARROW"); }
 "("         { print_token("LPAREN"); }
 ")"         { print_token("RPAREN"); }
+"["         { print_token("LBRACK"); }
+"]"         { print_token("RBRACK"); }
+"{"         { print_token("LBRACE"); }
+"}"         { print_token("RBRACE"); }
 ";"         { print_token("SEMICOLON"); }
+":"         { print_token("COLON"); }
+","         { print_token("COMMA"); }
+"\""        { print_token("QUOTA"); }
+"\n"        { print_token("NEWLINE"); line_num++; }
 {func}      { yyless(3); print_token("FUNC"); }
 {ident}     { print_token("IDENT"); }
+{intlit}    { print_token("INT_LIT"); }
+{floatlit}  { print_token("FLOAT_LIT"); }
+{i32}       { yyless(yyleng - 1); print_token("INT"); }
+{f32}       { yyless(yyleng - 1); print_token("FLOAT"); }
+
+{comment}   { print_token("COMMENT"); comment_num++;}
+{println}   { yyless(yyleng - 1); print_token("PRINTLN"); }
+{let}       { yyless(yyleng - 1); print_token("LET"); }
 <<EOF>>     { line_num++; yyterminate(); }
 [ \t]+      {;}
 .           {;}
+
+\/\*  { yymore(); BEGIN(multiln_comment); }
+<multiln_comment>\*\/\n     { yyless(yyleng - 1); print_token("MUTI_LINE_COMMENT"); BEGIN(INITIAL); comment_num++; }
+<multiln_comment>\*\/       { print_token("MUTI_LINE_COMMENT"); BEGIN(INITIAL); }
+<multiln_comment>[^\*\n]*   { yymore(); }
+<multiln_comment>\n         { yymore(); line_num++; comment_num++;}
+
+\"[^\";)]       { yyless(1); print_token("QUOTA"); BEGIN(string); }
+<string>\"      { yyless(yyleng - 1); print_token("STRING_LIT"); BEGIN(INITIAL); }
+<string>[^\"]*  { yymore(); }
 %%
- 
+
 /*  C Code section */
 int yywrap(void) {
     return 1;
 }
- 
+
 int main(int argc, char *argv[]) {
         if (argc == 2) {
         yyin = fopen(argv[1], "r");
