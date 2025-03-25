@@ -1,17 +1,18 @@
 /* Definition section */
 %{
-     #include <stdio.h>
-     #include <stdlib.h>
-     #include <string.h>
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <string.h>
  
-     #define YY_NO_UNPUT
-     #define YY_NO_INPUT
-     #define print_token(token) \
-         printf("%-8s \t %s\n", strcmp(token, "NEWLINE")? yytext: "", token)
+    #define YY_NO_UNPUT
+    #define YY_NO_INPUT
+    #define print_token(token) \
+        printf("%-8s \t %s\n", strcmp(token, "NEWLINE")? yytext: "", token)
+    #define print(token) printf("%s", token)
  
-     int line_num = 0;
-     int comment_num = 0;
-     int last_comment_line = -1;
+    int line_num = 0;
+    int comment_num = 0;
+    int last_comment_line = -1;
 %}
  
 /* Define regular expression label */
@@ -118,8 +119,8 @@ in      in\ [.]*
 \/\*  { yymore(); BEGIN(multiln_comment); }
 <multiln_comment>\*\/\ *\n      { yyless(yyleng - 1); print_token("MUTI_LINE_COMMENT"); BEGIN(INITIAL); comment_num++; }
 <multiln_comment>\*\/\ *        { print_token("MUTI_LINE_COMMENT"); BEGIN(INITIAL); }
-<multiln_comment>[^\*\n]*       { yymore(); }
-<multiln_comment>\n             { yymore(); line_num++; comment_num++; }
+<multiln_comment>[^\*\n]*       { print(yytext); }
+<multiln_comment>\n             { print(yytext); line_num++; comment_num++; }
 
 \"[^\";)]       { yyless(1); print_token("QUOTA"); BEGIN(string); }
 <string>\"      { yyless(yyleng - 1); print_token("STRING_LIT"); BEGIN(INITIAL); }
