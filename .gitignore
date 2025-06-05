@@ -1,0 +1,7 @@
+.DS_Store
+/myscanner.dSYM
+lex.yy.c
+myscanner
+y.output
+y.tab.c
+y.tab.h
