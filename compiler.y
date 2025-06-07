@@ -5,6 +5,22 @@
     #include "compiler_common.h"
     // #define YYDEBUG 1
     // int yydebug = 1;
+    #define MAX_SCOPES 64
+    #define MAX_SYMBOLS_PER_SCOPE 128
+    #define MAX_NAME_LEN 64
+
+    typedef struct {
+        char name[MAX_NAME_LEN];
+        char* type;
+        int mut;
+        int addr;
+        int lineno;
+        char* func_sig;
+    } Symbol;
+
+    Symbol symbol_table[MAX_SCOPES][MAX_SYMBOLS_PER_SCOPE];
+    int symbol_count[MAX_SCOPES];
+    int current_scope = -1;
 
     extern int yylineno;
     extern int yylex();
@@ -23,15 +39,18 @@
     /* Symbol table function - you can add new functions if needed. */
     /* parameters and return type can be changed */
     static void create_symbol();
-    static void insert_symbol();
-    static void lookup_symbol();
+    static void insert_symbol(char*, int, char*, int, int, char*);
+    // static void insert_symbol();
+    Symbol* lookup_symbol(const char* name);
     static void dump_symbol();
 
     /* Global variables */
     bool HAS_ERROR = false;
+
+    
 %}
 
-%error-verbose
+%define parse.error verbose
 
 /* Use variable or self-defined structure to represent
  * nonterminal and token type
@@ -63,6 +82,7 @@
 
 /* Nonterminal with return, which need to sepcify type */
 %type <s_val> Type
+%type <s_val> Expr
 
 /* Yacc will start at this nonterminal */
 %start Program
@@ -80,12 +100,42 @@ GlobalStatementList
 ;
 
 GlobalStatement
-    : FunctionDeclStmt
+    : FunctionDeclStmt { dump_symbol(); }
     | NEWLINE
 ;
 
 FunctionDeclStmt
-    :
+    : StartScope FUNC { printf("func: "); } IDENT { printf("%s\n", $<s_val>4); insert_symbol($<s_val>4, -1, "func", -1, 1, "(V)V"); } '(' ')' '{' Main_Loop { dump_symbol(); } '}'
+;
+
+Main_Loop
+    : StartScope PRINTLN '(' Expr ')' ';' { printf("PRINTLN %s\n", $<s_val>4); }
+
+Expr
+    : '\"' STRING_LIT '\"' { printf("STRING_LIT \"%s\"\n", $<s_val>2); $$ = "str"; }
+;
+
+StartScope
+    : /* empty */ { create_symbol(); }
+;
+
+Type
+    : INT { $$ = "i32"; }
+    | FLOAT { $$ = "f32"; }
+    | BOOL { $$ = "bool"; }
+    | STR { $$ = "str"; }
+;
+
+
+// sample
+/* FunctionDeclStmt
+    : FUNC { create_symbol(); } IDENT { printf("func: %s\n", $<s_val>3); } '(' ')' '{' Type_Dec1 { printf("Type_Dec1\n"); } ';' '}'
+; */
+
+Type_Dec1
+    : Type { printf("%s\n", $<s_val>1); } IDENT '=' INT_LIT { printf("INT_LIT %s, %s, %d\n", $<s_val>3, $<s_val>4, $<i_val>5); }
+;
+
 
 %%
 
@@ -107,20 +157,43 @@ int main(int argc, char *argv[])
 }
 
 static void create_symbol() {
-    printf("> Create symbol table (scope level %d)\n", 0);
+    current_scope++;
+    printf("> Create symbol table (scope level %d)\n", current_scope);
 }
 
-static void insert_symbol() {
-    printf("> Insert `%s` (addr: %d) to scope level %d\n", "XXX", 0, 0);
+static void insert_symbol(char* name, int mut, char* type, int addr, int lineno, char* func_sig) {
+    printf("> Insert `%s` (addr: %d) to scope level %d\n", name, addr, current_scope);
+    Symbol* s = &symbol_table[current_scope][symbol_count[current_scope]];
+    // insert all information
+    strncpy(s->name, name, MAX_NAME_LEN);
+    s->mut = mut;
+    s->type = type;
+    s->addr = addr;
+    s->lineno = lineno;
+    s->func_sig = func_sig;
+    // strncpy(s->func_sig, func_sig, 10);
+    symbol_count[current_scope]++;
 }
 
-static void lookup_symbol() {
+Symbol* lookup_symbol(const char* name) {
+    for (int s = current_scope; s >= 0; s--) {
+        for (int i = 0; i < symbol_count[s]; i++) {
+            if (strcmp(symbol_table[s][i].name, name) == 0) {
+                return &symbol_table[s][i];
+            }
+        }
+    }
 }
 
 static void dump_symbol() {
-    printf("\n> Dump symbol table (scope level: %d)\n", 0);
+    Symbol* s = symbol_table[current_scope];
+    printf("\n> Dump symbol table (scope level: %d)\n", current_scope);
     printf("%-10s%-10s%-10s%-10s%-10s%-10s%-10s\n",
         "Index", "Name", "Mut","Type", "Addr", "Lineno", "Func_sig");
-    printf("%-10d%-10s%-10d%-10s%-10d%-10d%-10s\n",
-            0, "name", 0, "type", 0, 0, "func_sig");
+
+    for (int i = 0; i < symbol_count[current_scope]; i++){
+        printf("%-10d%-10s%-10d%-10s%-10d%-10d%-10s\n",
+            i, s[i].name, s[i].mut, s[i].type, s[i].addr, s[i].lineno, s[i].func_sig);
+    }
+    current_scope--;
 }

@@ -100,7 +100,7 @@ fnumber ({digit}*\.{digit}+)
 {fnumber}   { yylval.f_val = atof(yytext);
                 return FLOAT_LIT;
             }
-{id}        { yylval.s_val = strdup(yytext); return ID;}
+{id}        { yylval.s_val = strdup(yytext); return IDENT;}
 <<EOF>>     { static int once = 0;
                 if (once++) {
                     yyterminate();
