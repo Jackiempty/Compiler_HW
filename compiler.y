@@ -84,10 +84,19 @@
 /* Nonterminal with return, which need to sepcify type */
 %type <s_val> Type
 %type <s_val> Expr
-%type <s_val> Operation
+%type <s_val> Type_LIT
+// %type <s_val> Operator
 
 /* Yacc will start at this nonterminal */
 %start Program
+
+/* Precedence */
+%left LOR
+%left LAND
+%left '>' '<'
+%left '+' '-'
+%left '*' '/' '%'
+%right UMINUS
 
 /* Grammar section */
 %%
@@ -121,6 +130,7 @@ BlockStatement
     /* | IfStatement
     | WhileStatement
     | ReturnStatement */
+    | '{' StartScope BlockStatements EndScope '}'
     | NEWLINE
 ;
 
@@ -129,13 +139,27 @@ LetStatement
 ;
 
 ExpressionStatement
-    : PRINTLN '(' Expr ')' ';' { printf("PRINTLN %s\n", $<s_val>3); }
-    | PRINT '(' Expr ')' ';' { printf("PRINT %s\n", $<s_val>3); }
+    : PRINTLN Expr ';' { printf("PRINTLN %s\n", $<s_val>2); }
+    | PRINT Expr ';' { printf("PRINT %s\n", $<s_val>2); }
 ;
 
 Expr
-    : '\"' STRING_LIT '\"' { printf("STRING_LIT \"%s\"\n", $<s_val>2); $$ = "str"; }
-    | IDENT { printf("IDENT (name=%s, address=%d)\n", $<s_val>1, lookup_symbol($<s_val>1)->addr); } Operation IDENT { printf("IDENT (name=%s, address=%d)\n", $<s_val>4, lookup_symbol($<s_val>4)->addr); } { printf("%s\n", $<s_val>3); $$ = lookup_symbol($<s_val>1)->type; }
+    : Expr '+' Expr { printf("ADD\n"); $$ = $<s_val>1; }
+    | Expr '-' Expr { printf("SUB\n"); $$ = $<s_val>1; }
+    | Expr '*' Expr { printf("MUL\n"); $$ = $<s_val>1; }
+    | Expr '/' Expr { printf("DIV\n"); $$ = $<s_val>1; }
+    | Expr '%' Expr { printf("REM\n"); $$ = $<s_val>1; }
+    | Expr '>' Expr { printf("GTR\n"); $$ = "bool"; }
+    | Expr '<' Expr { printf("LSS\n"); $$ = "bool"; }
+    | Expr LAND Expr { printf("LAND\n"); $$ = "bool"; }
+    | Expr LOR  Expr { printf("LOR\n"); $$ = "bool"; }
+    | '(' Expr ')' { $$ = $<s_val>2; }
+    | '-' Expr %prec UMINUS { printf("NEG\n"); $$ = $<s_val>2; }
+    | '!' Expr %prec UMINUS { printf("NOT\n"); $$ = $<s_val>2; }
+    | IDENT { printf("IDENT (name=%s, address=%d)\n", $<s_val>1, lookup_symbol($<s_val>1)->addr); $$ = lookup_symbol($<s_val>1)->type; }
+    | Type_LIT
+    /* | Expr Operator Expr { printf("%s\n", $<s_val>2); $$ = $<s_val>1; } */
+    /* | IDENT { printf("IDENT (name=%s, address=%d)\n", $<s_val>1, lookup_symbol($<s_val>1)->addr); } Operator IDENT { printf("IDENT (name=%s, address=%d)\n", $<s_val>4, lookup_symbol($<s_val>4)->addr); } { printf("%s\n", $<s_val>3); $$ = lookup_symbol($<s_val>1)->type; } */
 ;
 
 StartScope
@@ -150,15 +174,18 @@ Type
     : INT { $$ = "i32"; }
     | FLOAT { $$ = "f32"; }
     | BOOL { $$ = "bool"; }
-    | STR { $$ = "str"; }
+    | '&' STR { $$ = "str"; }
 ;
 
 Type_LIT
-    : INT_LIT { printf("INT_LIT %d\n", $<i_val>1); }
-    | FLOAT_LIT { printf("FLOAT_LIT %f\n", $<f_val>1); }
-    | STRING_LIT { printf("STRING_LIT %s\n", $<s_val>1); }
+    : '\"' STRING_LIT '\"' { printf("STRING_LIT \"%s\"\n", $<s_val>2); $$ = "str"; }
+    | INT_LIT { printf("INT_LIT %d\n", $<i_val>1); $$ = "i32"; }
+    | FLOAT_LIT { printf("FLOAT_LIT %f\n", $<f_val>1); $$ = "f32"; }
+    | TRUE { printf("bool TRUE\n"); $$ = "bool"; }
+    | FALSE { printf("bool FALSE\n"); $$ = "bool"; }
+;
 
-Operation
+/* Operator
     : '+' { $$ = "ADD"; }
     | '-' { $$ = "SUB"; }
     | '*' { $$ = "MUL"; }
@@ -166,17 +193,16 @@ Operation
     | '%' { $$ = "REM"; }
     | '>' { $$ = "GTR"; }
     | '<' { $$ = "LSS"; }
-;
-
+; */
 
 // sample
 /* FunctionDeclStmt
     : FUNC { create_symbol(); } IDENT { printf("func: %s\n", $<s_val>3); } '(' ')' '{' Type_Dec1 { printf("Type_Dec1\n"); } ';' '}'
 ; */
 
-Type_Dec1
+/* Type_Dec1
     : Type { printf("%s\n", $<s_val>1); } IDENT '=' INT_LIT { printf("INT_LIT %s, %s, %d\n", $<s_val>3, $<s_val>4, $<i_val>5); }
-;
+; */
 
 
 %%
