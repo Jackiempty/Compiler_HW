@@ -21,6 +21,7 @@
     Symbol symbol_table[MAX_SCOPES][MAX_SYMBOLS_PER_SCOPE];
     int symbol_count[MAX_SCOPES];
     int current_scope = -1;
+    int symbol_addr = -1;
 
     extern int yylineno;
     extern int yylex();
@@ -39,7 +40,7 @@
     /* Symbol table function - you can add new functions if needed. */
     /* parameters and return type can be changed */
     static void create_symbol();
-    static void insert_symbol(char*, int, char*, int, int, char*);
+    static void insert_symbol(char*, int, char*, char*);
     // static void insert_symbol();
     Symbol* lookup_symbol(const char* name);
     static void dump_symbol();
@@ -83,6 +84,7 @@
 /* Nonterminal with return, which need to sepcify type */
 %type <s_val> Type
 %type <s_val> Expr
+%type <s_val> Operation
 
 /* Yacc will start at this nonterminal */
 %start Program
@@ -100,23 +102,48 @@ GlobalStatementList
 ;
 
 GlobalStatement
-    : FunctionDeclStmt { dump_symbol(); }
+    : StartScope FunctionDeclStmt EndScope
     | NEWLINE
 ;
 
 FunctionDeclStmt
-    : StartScope FUNC { printf("func: "); } IDENT { printf("%s\n", $<s_val>4); insert_symbol($<s_val>4, -1, "func", -1, 1, "(V)V"); } '(' ')' '{' Main_Loop { dump_symbol(); } '}'
+    : FUNC { printf("func: "); } IDENT { printf("%s\n", $<s_val>3); insert_symbol($<s_val>3, -1, "func", "(V)V"); } '(' ')' '{' StartScope BlockStatements EndScope '}'
 ;
 
-Main_Loop
-    : StartScope PRINTLN '(' Expr ')' ';' { printf("PRINTLN %s\n", $<s_val>4); }
+BlockStatements
+    : BlockStatements BlockStatement
+    | BlockStatement
+;
+
+BlockStatement
+    : LetStatement
+    | ExpressionStatement
+    /* | IfStatement
+    | WhileStatement
+    | ReturnStatement */
+    | NEWLINE
+;
+
+LetStatement
+    : LET IDENT ':' Type '=' Type_LIT ';' { insert_symbol($<s_val>2, 0, $<s_val>4, "-"); }
+;
+
+ExpressionStatement
+    : PRINTLN '(' Expr ')' ';' { printf("PRINTLN %s\n", $<s_val>3); }
+    | PRINT '(' Expr ')' ';' { printf("PRINT %s\n", $<s_val>3); }
+;
 
 Expr
     : '\"' STRING_LIT '\"' { printf("STRING_LIT \"%s\"\n", $<s_val>2); $$ = "str"; }
+    | IDENT { printf("IDENT (name=%s, address=%d)\n", $<s_val>1, lookup_symbol($<s_val>1)->addr); } Operation IDENT { printf("IDENT (name=%s, address=%d)\n", $<s_val>4, lookup_symbol($<s_val>4)->addr); } { printf("%s\n", $<s_val>3); $$ = lookup_symbol($<s_val>1)->type; }
 ;
 
 StartScope
     : /* empty */ { create_symbol(); }
+;
+
+EndScope
+    : /* empty */ { dump_symbol(); }
 ;
 
 Type
@@ -124,6 +151,21 @@ Type
     | FLOAT { $$ = "f32"; }
     | BOOL { $$ = "bool"; }
     | STR { $$ = "str"; }
+;
+
+Type_LIT
+    : INT_LIT { printf("INT_LIT %d\n", $<i_val>1); }
+    | FLOAT_LIT { printf("FLOAT_LIT %f\n", $<f_val>1); }
+    | STRING_LIT { printf("STRING_LIT %s\n", $<s_val>1); }
+
+Operation
+    : '+' { $$ = "ADD"; }
+    | '-' { $$ = "SUB"; }
+    | '*' { $$ = "MUL"; }
+    | '/' { $$ = "DIV"; }
+    | '%' { $$ = "REM"; }
+    | '>' { $$ = "GTR"; }
+    | '<' { $$ = "LSS"; }
 ;
 
 
@@ -161,18 +203,19 @@ static void create_symbol() {
     printf("> Create symbol table (scope level %d)\n", current_scope);
 }
 
-static void insert_symbol(char* name, int mut, char* type, int addr, int lineno, char* func_sig) {
-    printf("> Insert `%s` (addr: %d) to scope level %d\n", name, addr, current_scope);
+static void insert_symbol(char* name, int mut, char* type, char* func_sig) {
+    printf("> Insert `%s` (addr: %d) to scope level %d\n", name, symbol_addr, current_scope);
     Symbol* s = &symbol_table[current_scope][symbol_count[current_scope]];
     // insert all information
     strncpy(s->name, name, MAX_NAME_LEN);
     s->mut = mut;
     s->type = type;
-    s->addr = addr;
-    s->lineno = lineno;
+    s->addr = symbol_addr;
+    s->lineno = yylineno + 1;
     s->func_sig = func_sig;
     // strncpy(s->func_sig, func_sig, 10);
     symbol_count[current_scope]++;
+    symbol_addr++;
 }
 
 Symbol* lookup_symbol(const char* name) {
@@ -195,5 +238,6 @@ static void dump_symbol() {
         printf("%-10d%-10s%-10d%-10s%-10d%-10d%-10s\n",
             i, s[i].name, s[i].mut, s[i].type, s[i].addr, s[i].lineno, s[i].func_sig);
     }
+    symbol_count[current_scope] = 0;
     current_scope--;
 }
