@@ -1,0 +1,9 @@
+.DS_Store
+/mycompiler.dSYM
+lex.yy.c
+mycompiler
+y.output
+y.tab.c
+y.tab.h
+hw3.j
+Main.class
