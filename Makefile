@@ -36,3 +36,6 @@ judge: all
 
 clean:
 	rm -f ${COMPILER} y.tab.* y.output lex.* ${EXEC}.class *.j *.log
+
+show:
+	javac Main.java && javap -c -v Main

@@ -59,13 +59,15 @@
     static void display_error(int);
     static char* get_type(char*);
 
+    int jump_count = 0;
+
     /* Global variables */
     bool g_has_error = false;
     FILE *fout = NULL;
     int g_indent_cnt = 0;
 %}
 
-%error-verbose
+%define parse.error verbose
 
 /* Use variable or self-defined structure to represent
  * nonterminal and token type
@@ -186,14 +188,14 @@ Expr
     | Expr '*' Expr { CODEGEN("%smul\n", get_type($<s_val>1)); printf("MUL\n"); $$ = $<s_val>1; }
     | Expr '/' Expr { CODEGEN("%sdiv\n", get_type($<s_val>1)); printf("DIV\n"); $$ = $<s_val>1; }
     | Expr '%' Expr { CODEGEN("%srem\n", get_type($<s_val>1)); printf("REM\n"); $$ = $<s_val>1; }
-    | Expr '>' Expr { CODEGEN("if_icmple cmp%d\niconst_1\ngoto cmp%d\ncmp%d:\niconst_0\ncmp%d:\n", yylineno, yylineno + 1, yylineno, yylineno + 1); strcmp($<s_val>1, $<s_val>3) == 0 ? : display_error(1); printf("GTR\n"); $$ = "bool"; }
-    | Expr '<' Expr { CODEGEN("if_icmpge cmp%d\niconst_1\ngoto cmp%d\ncmp%d:\niconst_0\ncmp%d:\n", yylineno, yylineno + 1, yylineno, yylineno + 1); printf("LSS\n"); $$ = "bool"; }
+    | Expr '>' Expr { CODEGEN("if_icmple cmp%d\niconst_1\ngoto cmp%d\ncmp%d:\niconst_0\ncmp%d:\n", yylineno, yylineno + 1, yylineno, yylineno + 1); strcmp($<s_val>1, $<s_val>3) == 0 ? : display_error(1); printf("GTR\n"); $$ = "Z"; }
+    | Expr '<' Expr { CODEGEN("if_icmpge cmp%d\niconst_1\ngoto cmp%d\ncmp%d:\niconst_0\ncmp%d:\n", yylineno, yylineno + 1, yylineno, yylineno + 1); printf("LSS\n"); $$ = "Z"; }
     | Expr EQL Expr { printf("EQL\n"); $$ = $<s_val>1; }
     | Expr NEQ Expr { printf("NEQ\n"); $$ = $<s_val>1; }
     | Expr GEQ Expr { printf("GEQ\n"); $$ = $<s_val>1; }
     | Expr LEQ Expr { printf("LEQ\n"); $$ = $<s_val>1; }
-    | Expr { CODEGEN("ifeq and%d\n", yylineno); } LAND Expr { CODEGEN("ifeq and%d\niconst_1\ngoto and%d\nand%d:\niconst_0\nand%d:\n", yylineno, yylineno, yylineno + 1, yylineno, yylineno + 1); printf("LAND\n"); $$ = "Z"; }
-    | Expr { CODEGEN("ifne and%d\n", yylineno); } LOR  Expr { CODEGEN("ifeq and%d\nand%d:\niconst_1\ngoto and%d\nand%d:\niconst_0\nand%d:\n", yylineno + 1, yylineno, yylineno + 2, yylineno + 1, yylineno + 2); printf("LOR\n"); $$ = "Z"; }
+    | Expr { CODEGEN("ifeq and%d\n", yylineno); } LAND Expr { CODEGEN("ifeq and%d\niconst_1\ngoto and%d\nand%d:\niconst_0\nand%d:\n", yylineno, yylineno + 1, yylineno, yylineno + 1); printf("LAND\n"); $$ = "Z"; }
+    | Expr { CODEGEN("ifne or%d\n", yylineno); } LOR  Expr { CODEGEN("ifeq or%d\nor%d:\niconst_1\ngoto or%d\nor%d:\niconst_0\nor%d:\n", yylineno + 1, yylineno, yylineno + 2, yylineno + 1, yylineno + 2); printf("LOR\n"); $$ = "Z"; }
     | Expr LSHIFT Expr { strcmp($<s_val>1, $<s_val>3) == 0 ? : display_error(2); printf("LSHIFT\n"); $$ = $<s_val>1; }
     | '(' Expr ')' { $$ = $<s_val>2; }
     | '-' Expr %prec UMINUS { CODEGEN("%sneg\n", get_type($<s_val>2)); printf("NEG\n"); $$ = $<s_val>2; }
@@ -215,7 +217,7 @@ EndScope
 Type
     : INT { $$ = "I"; }
     | FLOAT { $$ = "F"; }
-    | BOOL { $$ = "bool"; }
+    | BOOL { $$ = "I"; }
     | '&' STR { $$ = "[Ljava/lang/String;"; }
     | '[' Type ';' Type_LIT ']' { $$ = "array"; }
 ;
@@ -348,7 +350,7 @@ static void display_error(int errorType) {
 }
 
 static char* get_type(char* type) {
-    if (strcmp(type, "I") == 0) {
+    if (strcmp(type, "I") == 0 || strcmp(type, "Z") == 0) {
         return "i";
     } else if(strcmp(type, "F") == 0) {
         return "f";
