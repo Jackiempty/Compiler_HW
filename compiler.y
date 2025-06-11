@@ -54,10 +54,13 @@
     /* parameters and return type can be changed */
     static void create_symbol();
     static void insert_symbol(char*, int, char*, char*);
+    static void insert_symbol2(char*, int, char*, char*);
     Symbol* lookup_symbol(const char*);
     static void dump_symbol();
     static void display_error(int);
     static char* get_type(char*);
+    static void task1(bool);
+    static void task2(bool);
 
     int jump_count = 0;
 
@@ -101,6 +104,8 @@
 %type <s_val> Type
 %type <s_val> Expr
 %type <s_val> Type_LIT
+%type <i_val> Poo
+%type <i_val> Goo
 
 /* Yacc will start at this nonterminal */
 %start Program
@@ -153,8 +158,8 @@ BlockStatement
 LetStatement
     : LET IDENT ':' Type '=' Type_LIT ';' { insert_symbol($<s_val>2, 0, $<s_val>4, "-"); }
     | LET MUT IDENT ':' Type '=' Type_LIT ';' { insert_symbol($<s_val>3, 1, $<s_val>5, "-"); }
-    | LET IDENT ':' Type ';' { insert_symbol($<s_val>2, 0, $<s_val>4, "-"); }
-    | LET MUT IDENT ':' Type ';' { insert_symbol($<s_val>3, 1, $<s_val>5, "-"); }
+    | LET IDENT ':' Type ';' { insert_symbol2($<s_val>2, 0, $<s_val>4, "-"); }
+    | LET MUT IDENT ':' Type ';' { insert_symbol2($<s_val>3, 1, $<s_val>5, "-"); }
     | LET IDENT '=' Type_LIT ';' { insert_symbol($<s_val>2, 0, $<s_val>5, "-"); }
     | LET MUT IDENT '=' Type_LIT ';' { insert_symbol($<s_val>3, 1, $<s_val>5, "-"); }
 ;
@@ -165,22 +170,29 @@ ExpressionStatement
 ;
 
 AssignmentStatement
-    : IDENT '=' Expr ';' { lookup_symbol($<s_val>1)->addr == -2 ? : printf("ASSIGN\n"); lookup_symbol($<s_val>1)->mut == 0 ? display_error(0) : (lookup_symbol($<s_val>1)->addr != -2 ? : display_error(4)); }
-    | IDENT ADD_ASSIGN Expr ';' { printf("ADD_ASSIGN\n"); }
-    | IDENT SUB_ASSIGN Expr ';' { printf("SUB_ASSIGN\n"); }
-    | IDENT MUL_ASSIGN Expr ';' { printf("MUL_ASSIGN\n"); }
-    | IDENT DIV_ASSIGN Expr ';' { printf("DIV_ASSIGN\n"); }
-    | IDENT REM_ASSIGN Expr ';' { printf("REM_ASSIGN\n"); }
+    : IDENT '=' Expr ';' { CODEGEN("%sstore %d\n", get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); lookup_symbol($<s_val>1)->addr == -2 ? : printf("ASSIGN\n"); lookup_symbol($<s_val>1)->mut == 0 ? display_error(0) : (lookup_symbol($<s_val>1)->addr != -2 ? : display_error(4)); }
+    | IDENT { CODEGEN("%sload %d\n", get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); } ADD_ASSIGN Expr ';' { CODEGEN("%sadd\n%sstore %d\n", get_type(lookup_symbol($<s_val>1)->type), get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); printf("ADD_ASSIGN\n"); }
+    | IDENT { CODEGEN("%sload %d\n", get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); } SUB_ASSIGN Expr ';' { CODEGEN("%ssub\n%sstore %d\n", get_type(lookup_symbol($<s_val>1)->type), get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); printf("SUB_ASSIGN\n"); }
+    | IDENT { CODEGEN("%sload %d\n", get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); } MUL_ASSIGN Expr ';' { CODEGEN("%smul\n%sstore %d\n", get_type(lookup_symbol($<s_val>1)->type), get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); printf("MUL_ASSIGN\n"); }
+    | IDENT { CODEGEN("%sload %d\n", get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); } DIV_ASSIGN Expr ';' { CODEGEN("%sdiv\n%sstore %d\n", get_type(lookup_symbol($<s_val>1)->type), get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); printf("DIV_ASSIGN\n"); }
+    | IDENT { CODEGEN("%sload %d\n", get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); } REM_ASSIGN Expr ';' { CODEGEN("%srem\n%sstore %d\n", get_type(lookup_symbol($<s_val>1)->type), get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); printf("REM_ASSIGN\n"); }
 ;
 
 IfStatement
-    : IF Expr BlockStatement
-    | IF Expr BlockStatement ELSE BlockStatement
+    : IF Expr Poo BlockStatement { CODEGEN("eql%d:\n", $<i_val>3); }
+    | IF Expr Poo BlockStatement ELSE { CODEGEN("goto eql%d\neql%d:\n", $<i_val>3 + 1, $<i_val>3); } BlockStatement { CODEGEN("eql%d:\n", $<i_val>3 + 1); }
+;
+
+Poo
+    : { CODEGEN("eql%d\n", yylineno); $$ = yylineno; }
 ;
 
 WhileStatement
-    : WHILE Expr BlockStatement
+    : WHILE Goo Expr  { CODEGEN("ifeq wh%d\n", $<i_val>2 + 1); } BlockStatement { CODEGEN("goto wh%d\nwh%d:\n", $<i_val>2, $<i_val>2 + 1); }
 ;
+
+Goo
+    : { CODEGEN("wh%d:\n", yylineno); $$ = yylineno; }
 
 Expr
     : Expr '+' Expr { CODEGEN("%sadd\n", get_type($<s_val>1)); printf("ADD\n"); $$ = $<s_val>1; }
@@ -188,20 +200,20 @@ Expr
     | Expr '*' Expr { CODEGEN("%smul\n", get_type($<s_val>1)); printf("MUL\n"); $$ = $<s_val>1; }
     | Expr '/' Expr { CODEGEN("%sdiv\n", get_type($<s_val>1)); printf("DIV\n"); $$ = $<s_val>1; }
     | Expr '%' Expr { CODEGEN("%srem\n", get_type($<s_val>1)); printf("REM\n"); $$ = $<s_val>1; }
-    | Expr '>' Expr { CODEGEN("if_icmple cmp%d\niconst_1\ngoto cmp%d\ncmp%d:\niconst_0\ncmp%d:\n", yylineno, yylineno + 1, yylineno, yylineno + 1); strcmp($<s_val>1, $<s_val>3) == 0 ? : display_error(1); printf("GTR\n"); $$ = "Z"; }
-    | Expr '<' Expr { CODEGEN("if_icmpge cmp%d\niconst_1\ngoto cmp%d\ncmp%d:\niconst_0\ncmp%d:\n", yylineno, yylineno + 1, yylineno, yylineno + 1); printf("LSS\n"); $$ = "Z"; }
-    | Expr EQL Expr { printf("EQL\n"); $$ = $<s_val>1; }
-    | Expr NEQ Expr { printf("NEQ\n"); $$ = $<s_val>1; }
+    | Expr '>' Expr { task1(strcmp($<s_val>1, "F") == 0); CODEGEN("iconst_1\ngoto cmp%d\ncmp%d:\niconst_0\ncmp%d:\n", yylineno + 1, yylineno, yylineno + 1); strcmp($<s_val>1, $<s_val>3) == 0 ? : display_error(1); printf("GTR\n"); $$ = "Z"; }
+    | Expr '<' Expr { task2(strcmp($<s_val>1, "F") == 0); CODEGEN("iconst_1\ngoto cmp%d\ncmp%d:\niconst_0\ncmp%d:\n", yylineno + 1, yylineno, yylineno + 1); printf("LSS\n"); $$ = "Z"; }
+    | Expr EQL Expr { CODEGEN("if_icmpne "); printf("EQL\n"); $$ = $<s_val>1; }
+    | Expr NEQ Expr { CODEGEN("if_icmpeq "); printf("NEQ\n"); $$ = $<s_val>1; }
     | Expr GEQ Expr { printf("GEQ\n"); $$ = $<s_val>1; }
     | Expr LEQ Expr { printf("LEQ\n"); $$ = $<s_val>1; }
-    | Expr { CODEGEN("ifeq and%d\n", yylineno); } LAND Expr { CODEGEN("ifeq and%d\niconst_1\ngoto and%d\nand%d:\niconst_0\nand%d:\n", yylineno, yylineno + 1, yylineno, yylineno + 1); printf("LAND\n"); $$ = "Z"; }
-    | Expr { CODEGEN("ifne or%d\n", yylineno); } LOR  Expr { CODEGEN("ifeq or%d\nor%d:\niconst_1\ngoto or%d\nor%d:\niconst_0\nor%d:\n", yylineno + 1, yylineno, yylineno + 2, yylineno + 1, yylineno + 2); printf("LOR\n"); $$ = "Z"; }
+    | Expr LAND Expr { CODEGEN("iand\n"); printf("LAND\n"); $$ = "Z"; }
+    | Expr LOR  Expr { CODEGEN("ior\n"); printf("LOR\n"); $$ = "Z"; }
     | Expr LSHIFT Expr { strcmp($<s_val>1, $<s_val>3) == 0 ? : display_error(2); printf("LSHIFT\n"); $$ = $<s_val>1; }
     | '(' Expr ')' { $$ = $<s_val>2; }
     | '-' Expr %prec UMINUS { CODEGEN("%sneg\n", get_type($<s_val>2)); printf("NEG\n"); $$ = $<s_val>2; }
-    | '!' Expr %prec UMINUS { CODEGEN("ifne not%d\niconst_1\ngoto not%d\nnot%d:\niconst_0\nnot%d:\n", yylineno, yylineno + 1, yylineno, yylineno + 1); printf("NOT\n"); $$ = $<s_val>2; }
+    | '!' Expr %prec UMINUS { CODEGEN("ineg\n"); printf("NOT\n"); $$ = $<s_val>2; }
     | IDENT { CODEGEN("%sload %d\n", get_type(lookup_symbol($<s_val>1)->type), lookup_symbol($<s_val>1)->addr); lookup_symbol($<s_val>1)->addr == -2 ? display_error(3) : printf("IDENT (name=%s, address=%d)\n", $<s_val>1, lookup_symbol($<s_val>1)->addr); $$ = lookup_symbol($<s_val>1)->type; }
-    | Expr AS Type { printf("%s2%s\n", strcmp($<s_val>1, "F") ? "I" : "F" , strcmp($<s_val>3, "F") ? "I" : "F"); }
+    | Expr AS Type { CODEGEN("%s2%s\n", get_type($<s_val>1), get_type($<s_val>3)); printf("%s2%s\n", strcmp($<s_val>1, "F") ? "i" : "f" , strcmp($<s_val>3, "F") ? "i" : "f"); $$ = $<s_val>3;}
     | Type_LIT { $$ = $<s_val>1; }
     | IDENT { lookup_symbol($<s_val>1)->addr == -2 ? display_error(3) : printf("IDENT (name=%s, address=%d)\n", $<s_val>1, lookup_symbol($<s_val>1)->addr); } '[' Type_LIT ']' { $$ = "array"; }
 ;
@@ -217,8 +229,8 @@ EndScope
 Type
     : INT { $$ = "I"; }
     | FLOAT { $$ = "F"; }
-    | BOOL { $$ = "I"; }
-    | '&' STR { $$ = "[Ljava/lang/String;"; }
+    | BOOL { $$ = "Z"; }
+    | '&' STR { $$ = "Ljava/lang/String;"; }
     | '[' Type ';' Type_LIT ']' { $$ = "array"; }
 ;
 
@@ -228,7 +240,7 @@ Type_LIT
     | INT_LIT { CODEGEN("ldc %d\n", $<i_val>1); printf("INT_LIT %d\n", $<i_val>1); $$ = "I"; }
     | FLOAT_LIT { CODEGEN("ldc %f\n", $<f_val>1); printf("FLOAT_LIT %f\n", $<f_val>1); $$ = "F"; }
     | TRUE { CODEGEN("iconst_1\n"); printf("bool TRUE\n"); $$ = "I"; }
-    | FALSE { CODEGEN("iconst_1\n"); printf("bool FALSE\n"); $$ = "I"; }
+    | FALSE { CODEGEN("iconst_0\n"); printf("bool FALSE\n"); $$ = "I"; }
     | '[' Array ']' { $$ = "array"; }
 ;
 
@@ -357,4 +369,34 @@ static char* get_type(char* type) {
     } else {
         return "a";
     }
+}
+
+static void task1(bool a) {
+    if(a) {
+        CODEGEN("fcmpl\nifle cmp%d\n", yylineno);
+    } else {
+        CODEGEN("if_icmple cmp%d\n", yylineno);
+    }
+}
+
+static void task2(bool a) {
+    if(a) {
+        CODEGEN("fcmpg\nifge cmp%d\n", yylineno);
+    } else {
+        CODEGEN("if_icmpge cmp%d\n", yylineno);
+    }
+}
+
+static void insert_symbol2(char* name, int mut, char* type, char* func_sig) {
+    printf("> Insert `%s` (addr: %d) to scope level %d\n", name, symbol_addr, current_scope);
+    Symbol* s = &symbol_table[current_scope][symbol_count[current_scope]];
+    // insert all information
+    strncpy(s->name, name, MAX_NAME_LEN);
+    s->mut = mut;
+    s->type = type;
+    s->addr = symbol_addr;
+    s->lineno = yylineno + 1;
+    s->func_sig = func_sig;
+    symbol_count[current_scope]++;
+    symbol_addr++;
 }

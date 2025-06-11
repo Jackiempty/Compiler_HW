@@ -1,14 +1,12 @@
 public class Main {
   public static void main(String[] args) {
-    boolean m = true, n = false;
-    m = !m;
+    int a = 1;
 
-    boolean q = m && n;
+    boolean b = false;
 
-    boolean p = m || n;
-
-    System.out.println(q);
-    System.out.println(p);
-
+    while (b) {
+      System.out.println(a);
+      a += 1;
+    }
   }
 }
